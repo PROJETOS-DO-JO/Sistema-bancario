@@ -390,4 +390,127 @@ void historicoCliente() {
     }
 }
 
+double saldoTotalBanco() {
+    double total = 0;
+    int i;
+    for (i = 0; i < qtdClientes; i++) {
+        total += saldoTotalCliente(i);
+    }
+    return total;
+}
 
+void mostrarAptos() {
+    int i, j, achou = 0;
+
+    printf("\nClientes aptos a emprestimo:\n");
+    for (i = 0; i < qtdClientes; i++) {
+        if (aptoEmprestimo(i) == 1) {
+            printf("   %s | contas:", clientes[i].nome);
+            for (j = 0; j < clientes[i].qtdContas; j++) {
+                printf(" %d", clientes[i].contas[j].numero);
+            }
+            printf(" | limite: R$ %.2f\n", limiteEmprestimo(i));
+            achou = 1;
+        }
+    }
+    if (achou == 0) {
+        printf("   Nenhum.\n");
+    }
+}
+
+void mostrarNegativos() {
+    int i, j, achou = 0;
+
+    printf("\nClientes negativos:\n");
+    for (i = 0; i < qtdClientes; i++) {
+        for (j = 0; j < clientes[i].qtdContas; j++) {
+            if (clientes[i].contas[j].saldo < 0) {
+                printf("   %s | conta %d | saldo: R$ %.2f\n", clientes[i].nome,
+                       clientes[i].contas[j].numero, clientes[i].contas[j].saldo);
+                achou = 1;
+            }
+        }
+    }
+    if (achou == 0) {
+        printf("   Nenhum.\n");
+    }
+}
+
+void mostrarTitulos() {
+    int i, ps, achou = 0;
+    double saldo;
+
+    printf("\nClientes titulos (conta salario com saldo entre R$ 1000 e R$ 1500):\n");
+    for (i = 0; i < qtdClientes; i++) {
+        ps = posicaoDoTipo(i, SALARIO);
+        if (ps != -1) {
+            saldo = clientes[i].contas[ps].saldo;
+            if (saldo >= 1000 && saldo <= 1500) {
+                printf("   %s | conta %d | saldo: R$ %.2f\n", clientes[i].nome,
+                       clientes[i].contas[ps].numero, saldo);
+                achou = 1;
+            }
+        }
+    }
+    if (achou == 0) {
+        printf("   Nenhum.\n");
+    }
+}
+
+void relatorios() {
+    printf("\n========== RELATORIOS ==========\n");
+    printf("\nSaldo total do banco: R$ %.2f\n", saldoTotalBanco());
+    mostrarAptos();
+    mostrarNegativos();
+    mostrarTitulos();
+    printf("================================\n");
+}
+
+void abrirBanco() {
+    if (bancoAberto == 0) {
+        bancoAberto = 1;
+        registrarBanco(BANCO_ABERTO, -1, 0, 0);
+        printf("Banco aberto!\n");
+    }
+}
+
+void fecharBanco() {
+    bancoAberto = 0;
+    registrarBanco(BANCO_FECHADO, -1, 0, 0);
+    printf("Banco fechado.\n");
+}
+
+int bancoEstaAberto() {
+    return bancoAberto;
+}
+
+void historicoDoBanco() {
+    int i;
+
+    if (bancoAberto == 0) {
+        printf("\nO historico so pode ser consultado com o banco aberto.\n");
+        return;
+    }
+
+    printf("\n--- HISTORICO DO BANCO ---\n");
+    for (i = 0; i < qtdHistBanco; i++) {
+        printf("%d. ", i + 1);
+        mostrarOperacao(historicoBanco[i].operacao);
+
+        if (historicoBanco[i].operacao == NOVO_CLIENTE) {
+            printf(": %s", clientes[historicoBanco[i].cliente].nome);
+        } else if (historicoBanco[i].operacao == DEPOSITO ||
+                   historicoBanco[i].operacao == SAQUE ||
+                   historicoBanco[i].operacao == EMPRESTIMO) {
+            printf(" de R$ %.2f | conta %d (%s)", historicoBanco[i].valor,
+                   historicoBanco[i].numeroConta, clientes[historicoBanco[i].cliente].nome);
+        }
+        printf("\n");
+    }
+}
+
+void liberarMemoria() {
+    free(clientes);
+    clientes = NULL;
+    qtdClientes = 0;
+}
