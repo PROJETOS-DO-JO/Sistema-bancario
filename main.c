@@ -50,6 +50,24 @@ int main() {
         opcao = 's';
         scanf(" %c", &opcao);
         limparBuffer();
+        
+        switch (opcao) {
+            case '1':
+                abrirBanco();
+                menuBanco();
+                break;
+            case '2':
+                historicoDoBanco();
+                break;
+            case 's':
+            case 'S':
+                break;
+            default:
+                printf("Opcao invalida.\n");
+        }
     
     } while (opcao != 's' && opcao != 'S');
+
+    liberarMemoria();
+    return 0;
 }
