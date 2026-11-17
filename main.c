@@ -5,7 +5,7 @@ void menuBanco() {
     int opcao;
 
     do {
-        printf("\n------ BANCO ABERTO ------\n");
+        printf("BANCO ABERTO\n");
         printf("1 - Cadastrar cliente\n");
         printf("2 - Listar clientes\n");
         printf("3 - Depositar\n");
@@ -31,4 +31,25 @@ void menuBanco() {
             default: printf("Opcao invalida.\n");
         }
     } while (opcao != 0 && opcao != 8);
+}
+
+int main() {
+    char opcao;
+
+    do {
+        printf("\nMENU DO BANQUEIRO\n");
+        if (bancoEstaAberto() == 1) {
+            printf("1 - Entrar no banco (aberto)\n");
+        } else {
+            printf("1 - Abrir o banco\n");
+        }
+        printf("2 - Historico do banco\n");
+        printf("S - Sair\n");
+        printf("Opcao: ");
+
+        opcao = 's';
+        scanf(" %c", &opcao);
+        limparBuffer();
+    
+    } while (opcao != 's' && opcao != 'S');
 }
