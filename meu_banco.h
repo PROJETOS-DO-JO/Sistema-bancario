@@ -46,4 +46,41 @@ typedef struct {
     double valor;
 } Evento;
 
+void limparBuffer();
+int lerInteiro();
+double lerValor(double minimo);
+void lerNome(char nome[]);
+
+void registrarMovimento(int c, int j, int operacao, double valor);
+void registrarBanco(int operacao, int c, int numeroConta, double valor);
+void mostrarOperacao(int operacao);
+
+void mostrarTipo(int tipo);
+int podeCombinar(int tipo1, int tipo2);
+int posicaoDoTipo(int c, int tipo);
+double saldoTotalCliente(int c);
+int buscarConta(int numero, int *posConta);
+void criarConta(int c, int j, int tipo, double saldoInicial);
+int aptoEmprestimo(int c);
+double limiteEmprestimo(int c);
+
+void cadastrarCliente();
+void listarClientes();
+void depositar();
+void sacar();
+void solicitarEmprestimo();
+void historicoCliente();
+
+double saldoTotalBanco();
+void mostrarAptos();
+void mostrarNegativos();
+void mostrarTitulos();
+void relatorios();
+
+void abrirBanco();
+void fecharBanco();
+int bancoEstaAberto();
+void historicoDoBanco();
+void liberarMemoria();
+
 #endif
