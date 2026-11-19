@@ -5,11 +5,8 @@
 
 Cliente *clientes = NULL;
 int qtdClientes = 0;
-int proximoNumero = 1001;
 int bancoAberto = 0;
-
-Evento historicoBanco[MAX_HIST_BANCO];
-int qtdHistBanco = 0;
+int dadosCarregados = 0;
 
 void limparBuffer() {
     int c;
@@ -58,36 +55,19 @@ void lerNome(char nome[]) {
     } while (tam == 0);
 }
 
-void registrarMovimento(int c, int j, int operacao, double valor) {
-    int pos = clientes[c].contas[j].qtdHist;
-    if (pos < MAX_HIST) {
-        clientes[c].contas[j].historico[pos].operacao = operacao;
-        clientes[c].contas[j].historico[pos].valor = valor;
-        clientes[c].contas[j].historico[pos].saldoApos = clientes[c].contas[j].saldo;
-        clientes[c].contas[j].qtdHist++;
-    }
-}
+void registrarMovimento(int c, int j, char op, double valor) {
+    int k;
+    Conta *ct = &clientes[c].contas[j];
 
-void registrarBanco(int operacao, int c, int numeroConta, double valor) {
-    if (qtdHistBanco < MAX_HIST_BANCO) {
-        historicoBanco[qtdHistBanco].operacao = operacao;
-        historicoBanco[qtdHistBanco].cliente = c;
-        historicoBanco[qtdHistBanco].numeroConta = numeroConta;
-        historicoBanco[qtdHistBanco].valor = valor;
-        qtdHistBanco++;
+    if (ct->qtdHist == MAX_HIST) {
+        for (k = 0; k < MAX_HIST - 1; k++) {
+            ct->historico[k] = ct->historico[k + 1];
+        }
+        ct->qtdHist--;
     }
-}
-
-void mostrarOperacao(int operacao) {
-    switch (operacao) {
-        case ABERTURA:      printf("Abertura de conta"); break;
-        case DEPOSITO:      printf("Deposito"); break;
-        case SAQUE:         printf("Saque"); break;
-        case EMPRESTIMO:    printf("Emprestimo"); break;
-        case BANCO_ABERTO:  printf("Banco aberto"); break;
-        case BANCO_FECHADO: printf("Banco fechado"); break;
-        case NOVO_CLIENTE:  printf("Novo cliente"); break;
-    }
+    ct->historico[ct->qtdHist].op = op;
+    ct->historico[ct->qtdHist].valor = valor;
+    ct->qtdHist++;
 }
 
 void mostrarTipo(int tipo) {
@@ -130,26 +110,20 @@ double saldoTotalCliente(int c) {
     return total;
 }
 
-int buscarConta(int numero, int *posConta) {
-    int i, j;
+int buscarCliente(int numero) {
+    int i;
     for (i = 0; i < qtdClientes; i++) {
-        for (j = 0; j < clientes[i].qtdContas; j++) {
-            if (clientes[i].contas[j].numero == numero) {
-                *posConta = j;
-                return i;
-            }
+        if (clientes[i].numero == numero) {
+            return i;
         }
     }
     return -1;
 }
 
-void criarConta(int c, int j, int tipo, double saldoInicial) {
-    clientes[c].contas[j].numero = proximoNumero;
+void criarConta(int c, int j, int tipo) {
     clientes[c].contas[j].tipo = tipo;
-    clientes[c].contas[j].saldo = saldoInicial;
+    clientes[c].contas[j].saldo = 0;
     clientes[c].contas[j].qtdHist = 0;
-    proximoNumero++;
-    registrarMovimento(c, j, ABERTURA, saldoInicial);
 }
 
 int aptoEmprestimo(int c) {
@@ -175,11 +149,27 @@ double limiteEmprestimo(int c) {
     return 0.25 * (10 * saldoTotalCliente(c));
 }
 
+int aptoTitulo(int c) {
+    int ps = posicaoDoTipo(c, SALARIO);
+    double saldo;
+
+    if (clientes[c].temTitulo == 1) {
+        return 0;
+    }
+    if (ps == -1) {
+        return 0;
+    }
+    saldo = clientes[c].contas[ps].saldo;
+    if (saldo >= 1000 && saldo <= 1500) {
+        return 1;
+    }
+    return 0;
+}
+
 void cadastrarCliente() {
     Cliente *aux;
-    int c, tipo1, tipo2;
+    int c, j, tipo1, tipo2;
     char resposta;
-    double saldo;
 
     aux = realloc(clientes, (qtdClientes + 1) * sizeof(Cliente));
     if (aux == NULL) {
@@ -193,18 +183,20 @@ void cadastrarCliente() {
     printf("Nome do cliente: ");
     lerNome(clientes[c].nome);
 
+    clientes[c].numero = 1000 + qtdClientes;
     clientes[c].qtdContas = 0;
     clientes[c].temEmprestimo = 0;
     clientes[c].valorEmprestimo = 0;
+    clientes[c].temTitulo = 0;
+    clientes[c].sorteado = 0;
+    clientes[c].premio = 0;
 
     do {
         printf("Tipo da conta (1-Corrente / 2-Salario / 3-Poupanca): ");
         tipo1 = lerInteiro();
     } while (tipo1 < 1 || tipo1 > 3);
 
-    printf("Saldo inicial: R$ ");
-    saldo = lerValor(0);
-    criarConta(c, 0, tipo1, saldo);
+    criarConta(c, 0, tipo1);
     clientes[c].qtdContas = 1;
 
     printf("Deseja abrir uma segunda conta? (s/n): ");
@@ -220,21 +212,20 @@ void cadastrarCliente() {
             }
         } while (tipo2 < 1 || tipo2 > 3 || podeCombinar(tipo1, tipo2) == 0);
 
-        printf("Saldo inicial: R$ ");
-        saldo = lerValor(0);
-        criarConta(c, 1, tipo2, saldo);
+        criarConta(c, 1, tipo2);
         clientes[c].qtdContas = 2;
     }
 
     qtdClientes++;
-    registrarBanco(NOVO_CLIENTE, c, clientes[c].contas[0].numero, 0);
 
     printf("\nCliente cadastrado!\n");
-    for (int j = 0; j < clientes[c].qtdContas; j++) {
-        printf("  Conta %d - ", clientes[c].contas[j].numero);
+    for (j = 0; j < clientes[c].qtdContas; j++) {
+        printf("  Conta %d-%02d (", clientes[c].numero, clientes[c].contas[j].tipo);
         mostrarTipo(clientes[c].contas[j].tipo);
-        printf("\n");
+        printf(")\n");
     }
+
+    salvarDados();
 }
 
 void listarClientes() {
@@ -248,25 +239,48 @@ void listarClientes() {
     for (i = 0; i < qtdClientes; i++) {
         printf("%s\n", clientes[i].nome);
         for (j = 0; j < clientes[i].qtdContas; j++) {
-            printf("   Conta %d | ", clientes[i].contas[j].numero);
+            printf("   Conta %d-%02d | ", clientes[i].numero, clientes[i].contas[j].tipo);
             mostrarTipo(clientes[i].contas[j].tipo);
             printf(" | Saldo: R$ %.2f\n", clientes[i].contas[j].saldo);
         }
         if (clientes[i].temEmprestimo == 1) {
             printf("   Emprestimo: R$ %.2f\n", clientes[i].valorEmprestimo);
         }
+        if (clientes[i].temTitulo == 1) {
+            printf("   Possui titulo de capitalizacao\n");
+        }
     }
 }
 
+int lerConta(int *c, int *j) {
+    int numero, tipo;
+
+    printf("\nNumero da conta (ex: 1000-01): ");
+    if (scanf("%d-%d", &numero, &tipo) != 2) {
+        limparBuffer();
+        printf("Formato invalido.\n");
+        return 0;
+    }
+    limparBuffer();
+
+    *c = buscarCliente(numero);
+    if (*c == -1) {
+        printf("Conta nao encontrada.\n");
+        return 0;
+    }
+    *j = posicaoDoTipo(*c, tipo);
+    if (*j == -1) {
+        printf("Conta nao encontrada.\n");
+        return 0;
+    }
+    return 1;
+}
+
 void depositar() {
-    int numero, c, j;
+    int c, j;
     double valor;
 
-    printf("\nNumero da conta: ");
-    numero = lerInteiro();
-    c = buscarConta(numero, &j);
-    if (c == -1) {
-        printf("Conta nao encontrada.\n");
+    if (lerConta(&c, &j) == 0) {
         return;
     }
 
@@ -274,20 +288,16 @@ void depositar() {
     valor = lerValor(0.01);
     clientes[c].contas[j].saldo += valor;
 
-    registrarMovimento(c, j, DEPOSITO, valor);
-    registrarBanco(DEPOSITO, c, numero, valor);
+    registrarMovimento(c, j, 'D', valor);
     printf("Deposito feito. Novo saldo: R$ %.2f\n", clientes[c].contas[j].saldo);
+    salvarDados();
 }
 
 void sacar() {
-    int numero, c, j;
+    int c, j;
     double valor, minimo;
 
-    printf("\nNumero da conta: ");
-    numero = lerInteiro();
-    c = buscarConta(numero, &j);
-    if (c == -1) {
-        printf("Conta nao encontrada.\n");
+    if (lerConta(&c, &j) == 0) {
         return;
     }
 
@@ -306,20 +316,16 @@ void sacar() {
     }
     clientes[c].contas[j].saldo -= valor;
 
-    registrarMovimento(c, j, SAQUE, valor);
-    registrarBanco(SAQUE, c, numero, valor);
+    registrarMovimento(c, j, 'S', valor);
     printf("Saque feito. Novo saldo: R$ %.2f\n", clientes[c].contas[j].saldo);
+    salvarDados();
 }
 
 void solicitarEmprestimo() {
-    int numero, c, j, pc, pp;
+    int c, j, pc, pp;
     double limite, valor;
 
-    printf("\nNumero de uma conta do cliente: ");
-    numero = lerInteiro();
-    c = buscarConta(numero, &j);
-    if (c == -1) {
-        printf("Conta nao encontrada.\n");
+    if (lerConta(&c, &j) == 0) {
         return;
     }
 
@@ -335,7 +341,7 @@ void solicitarEmprestimo() {
         return;
     }
     if (pp == -1 || clientes[c].contas[pp].saldo <= 0) {
-        printf("Emprestimo negado: o cliente precisa ter salario na poupanca.\n");
+        printf("Emprestimo negado: o cliente precisa ter saldo na poupanca.\n");
         return;
     }
     if (saldoTotalCliente(c) <= 0) {
@@ -359,35 +365,9 @@ void solicitarEmprestimo() {
     clientes[c].temEmprestimo = 1;
     clientes[c].valorEmprestimo = valor;
 
-    registrarMovimento(c, pc, EMPRESTIMO, valor);
-    registrarBanco(EMPRESTIMO, c, clientes[c].contas[pc].numero, valor);
-    printf("Emprestimo aprovado e creditado na conta corrente %d.\n", clientes[c].contas[pc].numero);
-}
-
-void historicoCliente() {
-    int numero, c, j, k;
-
-    printf("\nNumero de uma conta do cliente: ");
-    numero = lerInteiro();
-    c = buscarConta(numero, &j);
-    if (c == -1) {
-        printf("Conta nao encontrada.\n");
-        return;
-    }
-
-    printf("\n--- HISTORICO DE %s ---\n", clientes[c].nome);
-    for (j = 0; j < clientes[c].qtdContas; j++) {
-        printf("Conta %d (", clientes[c].contas[j].numero);
-        mostrarTipo(clientes[c].contas[j].tipo);
-        printf("):\n");
-        for (k = 0; k < clientes[c].contas[j].qtdHist; k++) {
-            printf("   %d. ", k + 1);
-            mostrarOperacao(clientes[c].contas[j].historico[k].operacao);
-            printf(" de R$ %.2f | saldo R$ %.2f\n",
-                   clientes[c].contas[j].historico[k].valor,
-                   clientes[c].contas[j].historico[k].saldoApos);
-        }
-    }
+    registrarMovimento(c, pc, 'E', valor);
+    printf("Emprestimo aprovado e creditado na conta %d-01.\n", clientes[c].numero);
+    salvarDados();
 }
 
 double saldoTotalBanco() {
@@ -400,113 +380,302 @@ double saldoTotalBanco() {
 }
 
 void mostrarAptos() {
-    int i, j, achou = 0;
+    int i;
 
-    printf("\nClientes aptos a emprestimo:\n");
+    printf("\n== Clientes Aptos a Emprestimos ==\n");
     for (i = 0; i < qtdClientes; i++) {
         if (aptoEmprestimo(i) == 1) {
-            printf("   %s | contas:", clientes[i].nome);
-            for (j = 0; j < clientes[i].qtdContas; j++) {
-                printf(" %d", clientes[i].contas[j].numero);
-            }
-            printf(" | limite: R$ %.2f\n", limiteEmprestimo(i));
-            achou = 1;
+            printf("%s|%d-01|R$ %.2f\n", clientes[i].nome, clientes[i].numero,
+                   limiteEmprestimo(i));
         }
-    }
-    if (achou == 0) {
-        printf("   Nenhum.\n");
     }
 }
 
 void mostrarNegativos() {
-    int i, j, achou = 0;
+    int i, pc;
 
-    printf("\nClientes negativos:\n");
+    printf("\n== Clientes com Saldo Negativo na Conta Corrente ==\n");
     for (i = 0; i < qtdClientes; i++) {
-        for (j = 0; j < clientes[i].qtdContas; j++) {
-            if (clientes[i].contas[j].saldo < 0) {
-                printf("   %s | conta %d | saldo: R$ %.2f\n", clientes[i].nome,
-                       clientes[i].contas[j].numero, clientes[i].contas[j].saldo);
-                achou = 1;
-            }
+        pc = posicaoDoTipo(i, CORRENTE);
+        if (pc != -1 && clientes[i].contas[pc].saldo < 0) {
+            printf("%s|%d-01|R$ %.2f\n", clientes[i].nome, clientes[i].numero,
+                   clientes[i].contas[pc].saldo);
         }
-    }
-    if (achou == 0) {
-        printf("   Nenhum.\n");
     }
 }
 
 void mostrarTitulos() {
-    int i, ps, achou = 0;
-    double saldo;
+    int i, ps;
 
-    printf("\nClientes titulos (conta salario com saldo entre R$ 1000 e R$ 1500):\n");
+    printf("\n== Clientes Aptos a Compra de Titulos ==\n");
     for (i = 0; i < qtdClientes; i++) {
-        ps = posicaoDoTipo(i, SALARIO);
-        if (ps != -1) {
-            saldo = clientes[i].contas[ps].saldo;
-            if (saldo >= 1000 && saldo <= 1500) {
-                printf("   %s | conta %d | saldo: R$ %.2f\n", clientes[i].nome,
-                       clientes[i].contas[ps].numero, saldo);
-                achou = 1;
-            }
+        if (aptoTitulo(i) == 1) {
+            ps = posicaoDoTipo(i, SALARIO);
+            printf("%s|%d-02|R$ %.2f\n", clientes[i].nome, clientes[i].numero,
+                   clientes[i].contas[ps].saldo);
         }
-    }
-    if (achou == 0) {
-        printf("   Nenhum.\n");
     }
 }
 
-void relatorios() {
-    printf("\n========== RELATORIOS ==========\n");
-    printf("\nSaldo total do banco: R$ %.2f\n", saldoTotalBanco());
+void mostrarContemplados() {
+    int i;
+
+    printf("\n== Clientes Contemplado no Sorteio ==\n");
+    for (i = 0; i < qtdClientes; i++) {
+        if (clientes[i].sorteado == 1) {
+            printf("%s|%d-02|R$ %.2f\n", clientes[i].nome, clientes[i].numero,
+                   clientes[i].premio);
+        }
+    }
+}
+
+void historicoDoBanco() {
+    printf("\n== Saldo Total do banco ==\n");
+    printf("%d | R$ %.2f\n", qtdClientes, saldoTotalBanco());
     mostrarAptos();
     mostrarNegativos();
     mostrarTitulos();
-    printf("================================\n");
+    mostrarContemplados();
+}
+
+int fibonacci(int n) {
+    if (n == 0) {
+        return 0;
+    }
+    if (n == 1) {
+        return 1;
+    }
+    return fibonacci(n - 1) + fibonacci(n - 2);
+}
+
+int somaFibonacci(int n) {
+    int i, soma = 0;
+    for (i = 0; i < n; i++) {
+        soma += fibonacci(i);
+    }
+    return soma;
+}
+
+int ehPrimo(int n) {
+    int i;
+    if (n < 2) {
+        return 0;
+    }
+    for (i = 2; i * i <= n; i++) {
+        if (n % i == 0) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+void efetuarSorteio() {
+    int *ordem;
+    int i, j, aux, n, vencedor, ps;
+    int resultado[5];
+    double media = 0, premio;
+
+    if (qtdClientes < 5) {
+        printf("\nO sorteio precisa de pelo menos 5 clientes.\n");
+        return;
+    }
+
+    ordem = (int *) malloc(qtdClientes * sizeof(int));
+    if (ordem == NULL) {
+        printf("Erro: memoria insuficiente.\n");
+        return;
+    }
+    for (i = 0; i < qtdClientes; i++) {
+        ordem[i] = i;
+    }
+
+    for (i = 0; i < qtdClientes - 1; i++) {
+        for (j = 0; j < qtdClientes - 1 - i; j++) {
+            if (saldoTotalCliente(ordem[j]) < saldoTotalCliente(ordem[j + 1])) {
+                aux = ordem[j];
+                ordem[j] = ordem[j + 1];
+                ordem[j + 1] = aux;
+            }
+        }
+    }
+
+    for (i = 0; i < 5; i++) {
+        if (clientes[ordem[i]].temTitulo == 0) {
+            printf("\nSorteio nao realizado: %s esta entre os 5 maiores saldos e nao tem titulo.\n",
+                   clientes[ordem[i]].nome);
+            free(ordem);
+            return;
+        }
+    }
+
+    printf("\n--- SORTEIO ENTRE OS 5 MAIORES SALDOS ---\n");
+    for (i = 0; i < 5; i++) {
+        do {
+            printf("%s, digite um numero de 1 a 30: ", clientes[ordem[i]].nome);
+            n = lerInteiro();
+        } while (n < 1 || n > 30);
+        resultado[i] = somaFibonacci(n);
+        media += resultado[i];
+        printf("Soma de Fibonacci: %d\n", resultado[i]);
+    }
+    media = media / 5;
+
+    vencedor = -1;
+    for (i = 0; i < 5; i++) {
+        if (ehPrimo(resultado[i]) == 1) {
+            if (vencedor == -1 || resultado[i] > resultado[vencedor]) {
+                vencedor = i;
+            }
+        }
+    }
+
+    if (vencedor == -1) {
+        for (i = 0; i < 5; i++) {
+            if (resultado[i] % 2 == 0) {
+                if (vencedor == -1 || resultado[i] > resultado[vencedor]) {
+                    vencedor = i;
+                }
+            }
+        }
+    }
+
+    if (vencedor == -1) {
+        for (i = 0; i < 5; i++) {
+            if (resultado[i] > media) {
+                if (vencedor == -1 || resultado[i] > resultado[vencedor]) {
+                    vencedor = i;
+                }
+            }
+        }
+    }
+
+    if (vencedor == -1) {
+        vencedor = 0;
+    }
+
+    i = ordem[vencedor];
+    ps = posicaoDoTipo(i, SALARIO);
+    premio = 10 * clientes[i].contas[ps].saldo;
+    clientes[i].contas[ps].saldo += premio;
+    registrarMovimento(i, ps, 'D', premio);
+    clientes[i].sorteado = 1;
+    clientes[i].premio += premio;
+
+    printf("\nVencedor: %s (%d-02) | Premio: R$ %.2f\n", clientes[i].nome,
+           clientes[i].numero, premio);
+
+    free(ordem);
+    salvarDados();
+}
+
+void salvarDados() {
+    FILE *arq;
+    int i, j, k;
+    Conta *ct;
+
+    if (dadosCarregados == 0) {
+        return;
+    }
+
+    arq = fopen(ARQUIVO, "w");
+    if (arq == NULL) {
+        printf("Erro ao salvar os dados.\n");
+        return;
+    }
+
+    fprintf(arq, "%d\n", qtdClientes);
+    for (i = 0; i < qtdClientes; i++) {
+        fprintf(arq, "%s\n", clientes[i].nome);
+        fprintf(arq, "%d %d %d %.2f %d %d %.2f\n", clientes[i].numero,
+                clientes[i].qtdContas, clientes[i].temEmprestimo,
+                clientes[i].valorEmprestimo, clientes[i].temTitulo,
+                clientes[i].sorteado, clientes[i].premio);
+        for (j = 0; j < clientes[i].qtdContas; j++) {
+            ct = &clientes[i].contas[j];
+            fprintf(arq, "%d %.2f %d", ct->tipo, ct->saldo, ct->qtdHist);
+            for (k = 0; k < ct->qtdHist; k++) {
+                fprintf(arq, " %.2f %c", ct->historico[k].valor, ct->historico[k].op);
+            }
+            fprintf(arq, "\n");
+        }
+    }
+
+    fclose(arq);
+}
+
+void carregarDados() {
+    FILE *arq;
+    int i, j, k, tam, ch;
+    Conta *ct;
+
+    dadosCarregados = 1;
+
+    arq = fopen(ARQUIVO, "r");
+    if (arq == NULL) {
+        return;
+    }
+
+    if (fscanf(arq, "%d", &qtdClientes) != 1 || qtdClientes <= 0) {
+        qtdClientes = 0;
+        fclose(arq);
+        return;
+    }
+
+    clientes = (Cliente *) malloc(qtdClientes * sizeof(Cliente));
+    if (clientes == NULL) {
+        printf("Erro: memoria insuficiente.\n");
+        qtdClientes = 0;
+        fclose(arq);
+        return;
+    }
+
+    for (i = 0; i < qtdClientes; i++) {
+        do {
+            ch = fgetc(arq);
+        } while (ch != '\n' && ch != EOF);
+
+        fgets(clientes[i].nome, 50, arq);
+        tam = strlen(clientes[i].nome);
+        if (tam > 0 && clientes[i].nome[tam - 1] == '\n') {
+            clientes[i].nome[tam - 1] = '\0';
+        }
+
+        fscanf(arq, "%d %d %d %lf %d %d %lf", &clientes[i].numero,
+               &clientes[i].qtdContas, &clientes[i].temEmprestimo,
+               &clientes[i].valorEmprestimo, &clientes[i].temTitulo,
+               &clientes[i].sorteado, &clientes[i].premio);
+
+        for (j = 0; j < clientes[i].qtdContas; j++) {
+            ct = &clientes[i].contas[j];
+            fscanf(arq, "%d %lf %d", &ct->tipo, &ct->saldo, &ct->qtdHist);
+            for (k = 0; k < ct->qtdHist; k++) {
+                fscanf(arq, " %lf %c", &ct->historico[k].valor, &ct->historico[k].op);
+            }
+        }
+    }
+
+    fclose(arq);
+    printf("%d cliente(s) carregado(s) do arquivo.\n", qtdClientes);
 }
 
 void abrirBanco() {
+    if (dadosCarregados == 0) {
+        carregarDados();
+    }
     if (bancoAberto == 0) {
         bancoAberto = 1;
-        registrarBanco(BANCO_ABERTO, -1, 0, 0);
         printf("Banco aberto!\n");
     }
 }
 
 void fecharBanco() {
+    salvarDados();
     bancoAberto = 0;
-    registrarBanco(BANCO_FECHADO, -1, 0, 0);
     printf("Banco fechado.\n");
 }
 
 int bancoEstaAberto() {
     return bancoAberto;
-}
-
-void historicoDoBanco() {
-    int i;
-
-    if (bancoAberto == 0) {
-        printf("\nO historico so pode ser consultado com o banco aberto.\n");
-        return;
-    }
-
-    printf("\n--- HISTORICO DO BANCO ---\n");
-    for (i = 0; i < qtdHistBanco; i++) {
-        printf("%d. ", i + 1);
-        mostrarOperacao(historicoBanco[i].operacao);
-
-        if (historicoBanco[i].operacao == NOVO_CLIENTE) {
-            printf(": %s", clientes[historicoBanco[i].cliente].nome);
-        } else if (historicoBanco[i].operacao == DEPOSITO ||
-                   historicoBanco[i].operacao == SAQUE ||
-                   historicoBanco[i].operacao == EMPRESTIMO) {
-            printf(" de R$ %.2f | conta %d (%s)", historicoBanco[i].valor,
-                   historicoBanco[i].numeroConta, clientes[historicoBanco[i].cliente].nome);
-        }
-        printf("\n");
-    }
 }
 
 void liberarMemoria() {
